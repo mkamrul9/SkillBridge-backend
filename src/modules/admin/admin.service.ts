@@ -16,7 +16,7 @@ const getDashboardStats = async () => {
     prisma.review.count(),
   ]);
 
-  const [usersByRole, bookingsByStatus, recentBookings] = await Promise.all([
+  const [usersByRole, bookingsByStatus, recentBookings, recentUsers] = await Promise.all([
     prisma.user.groupBy({
       by: ["role"],
       _count: {
@@ -52,6 +52,19 @@ const getDashboardStats = async () => {
         },
       },
     }),
+    prisma.user.findMany({
+      take: 5,
+      orderBy: {
+        createdAt: "desc",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    }),
   ]);
 
   return {
@@ -65,6 +78,7 @@ const getDashboardStats = async () => {
     usersByRole,
     bookingsByStatus,
     recentBookings,
+    recentUsers,
   };
 };
 
