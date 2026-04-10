@@ -13,9 +13,12 @@ const _debugTrustedOrigins =
   (process.env.NODE_ENV !== "production"
     ? "http://localhost:3000"
     : defaultFrontendUrl);
-console.log(
-  `[AuthDebug] NODE_ENV=${_debugNodeEnv} TRUSTED_ORIGINS=${_debugTrustedOrigins}`,
-);
+
+if (process.env.NODE_ENV !== "production") {
+  console.log(
+    `[AuthDebug] NODE_ENV=${_debugNodeEnv} TRUSTED_ORIGINS=${_debugTrustedOrigins}`,
+  );
+}
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
