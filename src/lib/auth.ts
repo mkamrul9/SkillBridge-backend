@@ -2,12 +2,17 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 
+const defaultFrontendUrl = "https://skillbridge-frontend-phi.vercel.app";
+
 // Debug: print effective auth cookie config at startup to help verify deployed settings
 const _debugNodeEnv = process.env.NODE_ENV;
 const _debugTrustedOrigins =
   process.env.TRUSTED_ORIGINS ||
+  process.env.FRONTEND_URL ||
   process.env.APP_URL ||
-  (process.env.NODE_ENV !== "production" ? "http://localhost:3000" : "(none)");
+  (process.env.NODE_ENV !== "production"
+    ? "http://localhost:3000"
+    : defaultFrontendUrl);
 console.log(
   `[AuthDebug] NODE_ENV=${_debugNodeEnv} TRUSTED_ORIGINS=${_debugTrustedOrigins}`,
 );
@@ -25,13 +30,18 @@ export const auth = betterAuth({
         .map((s) => s.trim())
         .filter(Boolean);
     }
+    if (process.env.FRONTEND_URL) return [process.env.FRONTEND_URL];
     if (process.env.APP_URL) return [process.env.APP_URL];
     if (process.env.NODE_ENV !== "production") return ["http://localhost:3000"];
-    return [];
+    return [defaultFrontendUrl];
   })(),
   advanced: {
     useSecureCookies: true,
-    redirectOnLogin: process.env.APP_URL || "http://localhost:3000",
+    redirectOnLogin:
+      process.env.FRONTEND_URL ||
+      (process.env.NODE_ENV === "production"
+        ? defaultFrontendUrl
+        : process.env.APP_URL || "http://localhost:3000"),
   },
   session: {
     cookie: {

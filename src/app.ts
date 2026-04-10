@@ -14,6 +14,8 @@ import reviewRoutes from "./modules/reviews/review.route";
 import adminRoutes from "./modules/admin/admin.route";
 import studentRoutes from "./modules/students/student.route";
 
+const defaultFrontendUrl = "https://skillbridge-frontend-phi.vercel.app";
+
 const app: Application = express();
 
 // Configure CORS to only allow trusted origins (from env TRUSTED_ORIGINS or APP_URL)
@@ -22,7 +24,9 @@ const trustedOrigins = (() => {
     return process.env.TRUSTED_ORIGINS.split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+  if (process.env.FRONTEND_URL) return [process.env.FRONTEND_URL];
   if (process.env.APP_URL) return [process.env.APP_URL];
+  if (process.env.NODE_ENV === "production") return [defaultFrontendUrl];
   return [];
 })();
 

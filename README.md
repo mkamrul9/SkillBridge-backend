@@ -144,13 +144,15 @@ erDiagram
    DATABASE_URL="postgresql://username:password@localhost:5432/skillbridge"
    BETTER_AUTH_SECRET="your-secret-key"
    BETTER_AUTH_URL="http://localhost:5000"
+    FRONTEND_URL="http://localhost:3000"
    TRUSTED_ORIGINS="http://localhost:3000"
    PORT=5000
    NODE_ENV="development"
 
    # For production (Render):
    # BETTER_AUTH_URL="https://skillbridge-backend-evdp.onrender.com"
-   # TRUSTED_ORIGINS="https://skillbridge-frontend-phi.vercel.app"
+    # FRONTEND_URL="https://skillbridge-frontend-phi.vercel.app"
+    # TRUSTED_ORIGINS="https://skillbridge-frontend-phi.vercel.app"
    # NODE_ENV="production"
    ```
 
