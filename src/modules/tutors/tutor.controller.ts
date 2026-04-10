@@ -38,8 +38,19 @@ const getAllTutors = async (
 ) => {
   try {
     // Get from query parameters
-    const { subjects, minRate, maxRate, minExperience, categoryId, minRating } =
-      req.query;
+    const {
+      subjects,
+      minRate,
+      maxRate,
+      minExperience,
+      categoryId,
+      minRating,
+      search,
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+    } = req.query;
 
     // filter parameters
     const filters: {
@@ -49,6 +60,11 @@ const getAllTutors = async (
       minExperience?: number;
       categoryId?: string;
       minRating?: number;
+      search?: string;
+      sortBy?: "newest" | "price" | "experience" | "rating" | "name";
+      sortOrder?: "asc" | "desc";
+      page?: number;
+      limit?: number;
     } = {};
 
     if (subjects) {
@@ -72,13 +88,38 @@ const getAllTutors = async (
     if (minRating) {
       filters.minRating = parseFloat(minRating as string);
     }
+    if (search) {
+      filters.search = (search as string).trim();
+    }
+    if (sortBy) {
+      const allowedSortBy = ["newest", "price", "experience", "rating", "name"];
+      if (allowedSortBy.includes(sortBy as string)) {
+        filters.sortBy = sortBy as "newest" | "price" | "experience" | "rating" | "name";
+      }
+    }
+    if (sortOrder) {
+      const normalizedOrder = (sortOrder as string).toLowerCase();
+      if (normalizedOrder === "asc" || normalizedOrder === "desc") {
+        filters.sortOrder = normalizedOrder;
+      }
+    }
+    if (page) {
+      const parsedPage = parseInt(page as string, 10);
+      if (!Number.isNaN(parsedPage)) filters.page = parsedPage;
+    }
+    if (limit) {
+      const parsedLimit = parseInt(limit as string, 10);
+      if (!Number.isNaN(parsedLimit)) filters.limit = parsedLimit;
+    }
 
-    const tutors = await tutorService.getAllTutors(filters);
+    const result = await tutorService.getAllTutors(filters);
 
     res.status(200).json({
       success: true,
-      count: tutors.length,
-      data: tutors,
+      count: result.data.length,
+      total: result.pagination.total,
+      pagination: result.pagination,
+      data: result.data,
     });
   } catch (error) {
     next(error);

@@ -41,6 +41,11 @@ const getAllTutors = async (filters: {
   minExperience?: number;
   categoryId?: string;
   minRating?: number;
+  search?: string;
+  sortBy?: "newest" | "price" | "experience" | "rating" | "name";
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
 }) => {
   const tutors = await prisma.tutorProfile.findMany({
     where: {
@@ -54,6 +59,32 @@ const getAllTutors = async (filters: {
           },
         },
       }),
+      ...(filters.search && {
+        OR: [
+          {
+            user: {
+              name: {
+                contains: filters.search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            user: {
+              email: {
+                contains: filters.search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            bio: {
+              contains: filters.search,
+              mode: "insensitive",
+            },
+          },
+        ],
+      }),
     },
     include: {
       user: {
@@ -62,6 +93,7 @@ const getAllTutors = async (filters: {
           name: true,
           email: true,
           image: true,
+          createdAt: true,
         },
       },
       categories: true,
@@ -98,7 +130,54 @@ const getAllTutors = async (filters: {
     return true;
   });
 
-  return filteredTutors;
+  const withAverageRating = filteredTutors.map((tutor) => {
+    const averageRating = tutor.reviews.length
+      ? tutor.reviews.reduce((sum, r) => sum + r.rating, 0) / tutor.reviews.length
+      : 0;
+    return {
+      ...tutor,
+      averageRating,
+    };
+  });
+
+  const sortBy = filters.sortBy || "newest";
+  const sortOrder = filters.sortOrder || "desc";
+
+  const sortedTutors = [...withAverageRating].sort((a, b) => {
+    let compareValue = 0;
+
+    if (sortBy === "price") {
+      compareValue = Number(a.hourlyRate) - Number(b.hourlyRate);
+    } else if (sortBy === "experience") {
+      compareValue = a.experience - b.experience;
+    } else if (sortBy === "rating") {
+      compareValue = a.averageRating - b.averageRating;
+    } else if (sortBy === "name") {
+      compareValue = a.user.name.localeCompare(b.user.name);
+    } else {
+      compareValue =
+        new Date(a.user.createdAt).getTime() - new Date(b.user.createdAt).getTime();
+    }
+
+    return sortOrder === "asc" ? compareValue : -compareValue;
+  });
+
+  const page = Math.max(1, filters.page || 1);
+  const limit = Math.min(100, Math.max(1, filters.limit || 12));
+  const total = sortedTutors.length;
+  const totalPages = total === 0 ? 1 : Math.ceil(total / limit);
+  const start = (page - 1) * limit;
+  const pagedTutors = sortedTutors.slice(start, start + limit);
+
+  return {
+    data: pagedTutors,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
 };
 
 // Get featured tutors (top rated with reviews)
