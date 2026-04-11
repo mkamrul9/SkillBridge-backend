@@ -352,10 +352,10 @@ const createTutorProfile = async (
         availability: data.availability || null,
         ...(data.categoryIds &&
           data.categoryIds.length > 0 && {
-            categories: {
-              connect: data.categoryIds.map((id) => ({ id })),
-            },
-          }),
+          categories: {
+            connect: data.categoryIds.map((id) => ({ id })),
+          },
+        }),
       },
       include: {
         user: {
