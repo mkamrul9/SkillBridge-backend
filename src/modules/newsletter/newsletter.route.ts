@@ -32,6 +32,13 @@ router.post("/", async (req, res) => {
             return res.status(500).json({ success: false, message: "Newsletter service is not configured" });
         }
 
+        if (!senderEmail) {
+            return res.status(500).json({
+                success: false,
+                message: "Newsletter sender is not configured",
+            });
+        }
+
         const payload: Record<string, unknown> = {
             email,
             updateEnabled: true,
@@ -59,33 +66,30 @@ router.post("/", async (req, res) => {
             });
         }
 
-        // Send welcome/confirmation email to subscribed user when sender config is present.
-        if (senderEmail) {
-            const mailRes = await fetch("https://api.brevo.com/v3/smtp/email", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "api-key": apiKey,
-                },
-                body: JSON.stringify({
-                    sender: { email: senderEmail, name: senderName },
-                    to: [{ email }],
-                    subject: "Welcome to SkillBridge Newsletter",
-                    htmlContent:
-                        "<p>Hi there,</p><p>Thanks for subscribing to <strong>SkillBridge</strong> updates.</p><p>You will receive our latest offers, tutor highlights, and learning resources.</p><p>Best regards,<br/>SkillBridge Team</p>",
-                    textContent:
-                        "Thanks for subscribing to SkillBridge updates. You will receive our latest offers, tutor highlights, and learning resources.",
-                }),
-            });
+        const mailRes = await fetch("https://api.brevo.com/v3/smtp/email", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "api-key": apiKey,
+            },
+            body: JSON.stringify({
+                sender: { email: senderEmail, name: senderName },
+                to: [{ email }],
+                subject: "Welcome to SkillBridge Newsletter",
+                htmlContent:
+                    "<p>Hi there,</p><p>Thanks for subscribing to <strong>SkillBridge</strong> updates.</p><p>You will receive our latest offers, tutor highlights, and learning resources.</p><p>Best regards,<br/>SkillBridge Team</p>",
+                textContent:
+                    "Thanks for subscribing to SkillBridge updates. You will receive our latest offers, tutor highlights, and learning resources.",
+            }),
+        });
 
-            if (!mailRes.ok) {
-                const mailDetails = await mailRes.text();
-                return res.status(502).json({
-                    success: false,
-                    message: "Subscribed, but failed to send confirmation email",
-                    details: mailDetails,
-                });
-            }
+        if (!mailRes.ok) {
+            const mailDetails = await mailRes.text();
+            return res.status(502).json({
+                success: false,
+                message: "Subscribed, but failed to send confirmation email",
+                details: mailDetails,
+            });
         }
 
         return res.status(200).json({ success: true, message: "Subscribed successfully" });
