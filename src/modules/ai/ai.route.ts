@@ -16,7 +16,15 @@ const buildFallbackReply = (prompt: string) => {
 
 router.post("/chat", auth(), async (req, res) => {
     try {
-        const apiKey = String(process.env.OPENAI_API_KEY || "").trim().replace(/^['\"]|['\"]$/g, "");
+        const apiKey = String(
+            process.env.OPENAI_API_KEY ||
+            process.env.OPENAI_APIKEY ||
+            process.env.OPENAI_KEY ||
+            "",
+        )
+            .trim()
+            .replace(/^['\"]|['\"]$/g, "");
+        const baseUrl = String(process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").trim().replace(/\/+$/, "");
 
         if (!apiKey) {
             return res.status(200).json({
@@ -29,8 +37,8 @@ router.post("/chat", auth(), async (req, res) => {
             });
         }
 
-        const preferredModel = String(process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
-        const fallbackModels = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-3.5-turbo"];
+        const preferredModel = String(process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
+        const fallbackModels = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1-nano", "gpt-3.5-turbo"];
         const modelsToTry = Array.from(new Set([preferredModel, ...fallbackModels].filter(Boolean)));
         const userMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
         const lastUserMessage = userMessages
@@ -57,10 +65,18 @@ router.post("/chat", auth(), async (req, res) => {
             baseHeaders["OpenAI-Organization"] = process.env.OPENAI_ORGANIZATION;
         }
 
+        if (process.env.OPENAI_HTTP_REFERER) {
+            baseHeaders["HTTP-Referer"] = process.env.OPENAI_HTTP_REFERER;
+        }
+
+        if (process.env.OPENAI_APP_TITLE) {
+            baseHeaders["X-Title"] = process.env.OPENAI_APP_TITLE;
+        }
+
         let lastErrorDetails = "";
 
         for (const model of modelsToTry) {
-            const completion = await fetch("https://api.openai.com/v1/chat/completions", {
+            const completion = await fetch(`${baseUrl}/chat/completions`, {
                 method: "POST",
                 headers: baseHeaders,
                 body: JSON.stringify({
@@ -104,7 +120,7 @@ router.post("/chat", auth(), async (req, res) => {
                 fallback: true,
             },
             warning:
-                "AI provider request failed. Verify OPENAI_API_KEY and model access (try OPENAI_MODEL=gpt-4.1-mini).",
+                "AI provider request failed. Verify API key/model access and provider base URL configuration.",
             details: lastErrorDetails.slice(0, 1000),
         });
     } catch (error) {
