@@ -14,6 +14,7 @@ import reviewRoutes from "./modules/reviews/review.route";
 import adminRoutes from "./modules/admin/admin.route";
 import studentRoutes from "./modules/students/student.route";
 import newsletterRoutes from "./modules/newsletter/newsletter.route";
+import aiRoutes from "./modules/ai/ai.route";
 
 const defaultFrontendUrl = "https://skillbridge-frontend-phi.vercel.app";
 const localFrontendUrl = "http://localhost:3000";
@@ -109,6 +110,7 @@ app.use("/api/reviews", reviewRoutes); // Public & Student routes
 app.use("/api/admin", adminRoutes); // Admin routes
 app.use("/api/students", studentRoutes); // Student profile routes
 app.use("/api/newsletter", newsletterRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/", (req, res) => {
   res.json({
@@ -124,6 +126,7 @@ app.get("/", (req, res) => {
       reviews: "/api/reviews",
       students: "/api/students",
       newsletter: "/api/newsletter",
+      ai: "/api/ai",
     },
   });
 });
