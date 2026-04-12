@@ -27,6 +27,7 @@ const resolvedBackendUrl = trimTrailingSlash(
 const googleRedirectUri = trimTrailingSlash(
   process.env.GOOGLE_REDIRECT_URI || `${resolvedFrontendUrl}/api/auth/callback/google`,
 );
+const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
 const facebookRedirectUri = trimTrailingSlash(
   process.env.FACEBOOK_REDIRECT_URI || `${resolvedFrontendUrl}/api/auth/callback/facebook`,
 );
@@ -38,6 +39,12 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 console.log(`[AuthDebug] Google redirect URI: ${googleRedirectUri}`);
+console.log(
+  `[AuthDebug] Google client ID: ${googleClientId ? `${googleClientId.slice(0, 16)}...` : "MISSING"}`,
+);
+if (!process.env.GOOGLE_REDIRECT_URI) {
+  console.log("[AuthDebug] GOOGLE_REDIRECT_URI not set, using computed default");
+}
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
