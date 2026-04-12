@@ -1,5 +1,28 @@
 import { prisma } from "../../lib/prisma";
 
+const normalizePhone = (value: unknown): string | null => {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+
+  const lowered = raw.toLowerCase();
+  const placeholderTokens = [
+    "dummy",
+    "not provided",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "undefined",
+    "test",
+  ];
+
+  if (placeholderTokens.some((token) => lowered.includes(token))) {
+    return null;
+  }
+
+  return raw;
+};
+
 // Get student profile
 const getMyProfile = async (userId: string) => {
   const user = await prisma.user.findUnique({
@@ -22,7 +45,10 @@ const getMyProfile = async (userId: string) => {
     throw new Error("User not found");
   }
 
-  return user;
+  return {
+    ...user,
+    phone: normalizePhone(user.phone),
+  };
 };
 
 // Update student profile
@@ -30,11 +56,13 @@ const updateMyProfile = async (
   userId: string,
   data: { name?: string; phone?: string; image?: string },
 ) => {
+  const safePhone = data.phone !== undefined ? normalizePhone(data.phone) : undefined;
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
       ...(data.name && { name: data.name }),
-      ...(data.phone !== undefined && { phone: data.phone }),
+      ...(safePhone !== undefined && { phone: safePhone }),
       ...(data.image !== undefined && { image: data.image }),
     },
     select: {
@@ -50,7 +78,10 @@ const updateMyProfile = async (
     },
   });
 
-  return updatedUser;
+  return {
+    ...updatedUser,
+    phone: normalizePhone(updatedUser.phone),
+  };
 };
 
 export const studentService = {

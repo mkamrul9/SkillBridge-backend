@@ -1,5 +1,28 @@
 import { prisma } from "../../lib/prisma";
 
+const normalizePhone = (value: unknown): string | null => {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+
+  const lowered = raw.toLowerCase();
+  const placeholderTokens = [
+    "dummy",
+    "not provided",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "undefined",
+    "test",
+  ];
+
+  if (placeholderTokens.some((token) => lowered.includes(token))) {
+    return null;
+  }
+
+  return raw;
+};
+
 // Get current user with their profile information
 const getCurrentUser = async (userId: string) => {
   const user = await prisma.user.findUnique({
@@ -39,14 +62,23 @@ const getCurrentUser = async (userId: string) => {
     throw new Error("Your account has been banned. Please contact support.");
   }
 
+  if (user) {
+    return {
+      ...user,
+      phone: normalizePhone(user.phone),
+    };
+  }
+
   return user;
 };
 
 // Update user's phone number
 const updatePhone = async (userId: string, phone: string) => {
+  const safePhone = normalizePhone(phone);
+
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { phone },
+    data: { phone: safePhone },
     select: {
       id: true,
       name: true,
@@ -56,7 +88,10 @@ const updatePhone = async (userId: string, phone: string) => {
     },
   });
 
-  return user;
+  return {
+    ...user,
+    phone: normalizePhone(user.phone),
+  };
 };
 
 export const authService = {

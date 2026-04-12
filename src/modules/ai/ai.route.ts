@@ -3,14 +3,29 @@ import auth from "../../middlewares/auth";
 
 const router = Router();
 
+const buildFallbackReply = (prompt: string) => {
+    return [
+        "I could not reach the AI provider right now, but I can still help with SkillBridge basics.",
+        "Try these quick actions:",
+        "1) Open Tutors to filter by category and rating.",
+        "2) Use Dashboard to manage bookings and profile updates.",
+        "3) Use Reviews to check tutor quality before booking.",
+        `Your question: "${prompt.slice(0, 180)}"`,
+    ].join("\n");
+};
+
 router.post("/chat", auth(), async (req, res) => {
     try {
         const apiKey = String(process.env.OPENAI_API_KEY || "").trim().replace(/^['\"]|['\"]$/g, "");
 
         if (!apiKey) {
-            return res.status(500).json({
-                success: false,
-                message: "AI service is not configured. Set OPENAI_API_KEY in backend environment.",
+            return res.status(200).json({
+                success: true,
+                data: {
+                    reply:
+                        "AI provider is not configured yet. Please set OPENAI_API_KEY in backend environment. Meanwhile, you can browse tutors, manage bookings, and update your profile from the dashboard.",
+                    fallback: true,
+                },
             });
         }
 
@@ -82,9 +97,13 @@ router.post("/chat", auth(), async (req, res) => {
             lastErrorDetails = `[model=${model}] Empty response`;
         }
 
-        return res.status(502).json({
-            success: false,
-            message:
+        return res.status(200).json({
+            success: true,
+            data: {
+                reply: buildFallbackReply(String(lastUserMessage.content || "")),
+                fallback: true,
+            },
+            warning:
                 "AI provider request failed. Verify OPENAI_API_KEY and model access (try OPENAI_MODEL=gpt-4.1-mini).",
             details: lastErrorDetails.slice(0, 1000),
         });
