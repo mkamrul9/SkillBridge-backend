@@ -5,6 +5,8 @@ import { prisma } from "./prisma";
 const defaultFrontendUrl = "https://skillbridge-frontend-phi.vercel.app";
 const localFrontendUrl = "http://localhost:3000";
 
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
+
 // Debug: print effective auth cookie config at startup to help verify deployed settings
 const _debugNodeEnv = process.env.NODE_ENV;
 const _debugTrustedOrigins =
@@ -15,10 +17,16 @@ const _debugTrustedOrigins =
     ? localFrontendUrl
     : defaultFrontendUrl);
 
-const resolvedFrontendUrl =
+const resolvedFrontendUrl = trimTrailingSlash(
   process.env.FRONTEND_URL ||
-  (process.env.NODE_ENV !== "production" ? localFrontendUrl : defaultFrontendUrl);
-const resolvedBackendUrl = process.env.BETTER_AUTH_URL || "http://localhost:5000";
+    (process.env.NODE_ENV !== "production" ? localFrontendUrl : defaultFrontendUrl),
+);
+const resolvedBackendUrl = trimTrailingSlash(
+  process.env.BETTER_AUTH_URL || "http://localhost:5000",
+);
+const googleRedirectUri = trimTrailingSlash(
+  process.env.GOOGLE_REDIRECT_URI || `${resolvedFrontendUrl}/api/auth/callback/google`,
+);
 
 if (process.env.NODE_ENV !== "production") {
   console.log(
@@ -106,7 +114,7 @@ export const auth = betterAuth({
       accessType: "offline",
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      redirectURI: `${resolvedFrontendUrl}/api/auth/callback/google`,
+      redirectURI: googleRedirectUri,
     },
   },
 });
