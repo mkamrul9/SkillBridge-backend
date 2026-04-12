@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 
 const defaultFrontendUrl = "https://skillbridge-frontend-phi.vercel.app";
+const localFrontendUrl = "http://localhost:3000";
 
 // Debug: print effective auth cookie config at startup to help verify deployed settings
 const _debugNodeEnv = process.env.NODE_ENV;
@@ -11,8 +12,12 @@ const _debugTrustedOrigins =
   process.env.FRONTEND_URL ||
   process.env.APP_URL ||
   (process.env.NODE_ENV !== "production"
-    ? "http://localhost:3000"
+    ? localFrontendUrl
     : defaultFrontendUrl);
+
+const resolvedFrontendUrl =
+  process.env.FRONTEND_URL ||
+  (process.env.NODE_ENV !== "production" ? localFrontendUrl : defaultFrontendUrl);
 
 if (process.env.NODE_ENV !== "production") {
   console.log(
@@ -28,23 +33,28 @@ export const auth = betterAuth({
   // Allow multiple trusted origins via TRUSTED_ORIGINS (comma-separated),
   // fallback to APP_URL, and include localhost in development for local testing.
   trustedOrigins: (() => {
+    const origins = new Set<string>();
+
     if (process.env.TRUSTED_ORIGINS) {
-      return process.env.TRUSTED_ORIGINS.split(",")
+      process.env.TRUSTED_ORIGINS.split(",")
         .map((s) => s.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .forEach((origin) => origins.add(origin));
     }
-    if (process.env.FRONTEND_URL) return [process.env.FRONTEND_URL];
-    if (process.env.APP_URL) return [process.env.APP_URL];
-    if (process.env.NODE_ENV !== "production") return ["http://localhost:3000"];
-    return [defaultFrontendUrl];
+
+    origins.add(resolvedFrontendUrl);
+    origins.add(defaultFrontendUrl);
+
+    if (process.env.NODE_ENV !== "production") {
+      origins.add(localFrontendUrl);
+    }
+
+    return Array.from(origins);
   })(),
   advanced: {
     useSecureCookies: true,
     redirectOnLogin:
-      process.env.FRONTEND_URL ||
-      (process.env.NODE_ENV === "production"
-        ? defaultFrontendUrl
-        : process.env.APP_URL || "http://localhost:3000"),
+      resolvedFrontendUrl,
   },
   session: {
     cookie: {

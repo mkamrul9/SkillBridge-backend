@@ -13,21 +13,35 @@ import categoryRoutes from "./modules/categories/category.route";
 import reviewRoutes from "./modules/reviews/review.route";
 import adminRoutes from "./modules/admin/admin.route";
 import studentRoutes from "./modules/students/student.route";
+import newsletterRoutes from "./modules/newsletter/newsletter.route";
 
 const defaultFrontendUrl = "https://skillbridge-frontend-phi.vercel.app";
+const localFrontendUrl = "http://localhost:3000";
 
 const app: Application = express();
 
 // Configure CORS to only allow trusted origins (from env TRUSTED_ORIGINS or APP_URL)
 const trustedOrigins = (() => {
-  if (process.env.TRUSTED_ORIGINS)
-    return process.env.TRUSTED_ORIGINS.split(",")
+  const origins = new Set<string>();
+
+  if (process.env.TRUSTED_ORIGINS) {
+    process.env.TRUSTED_ORIGINS.split(",")
       .map((s) => s.trim())
-      .filter(Boolean);
-  if (process.env.FRONTEND_URL) return [process.env.FRONTEND_URL];
-  if (process.env.APP_URL) return [process.env.APP_URL];
-  if (process.env.NODE_ENV === "production") return [defaultFrontendUrl];
-  return [];
+      .filter(Boolean)
+      .forEach((origin) => origins.add(origin));
+  }
+
+  if (process.env.FRONTEND_URL) {
+    origins.add(process.env.FRONTEND_URL);
+  }
+
+  origins.add(defaultFrontendUrl);
+
+  if (process.env.NODE_ENV !== "production") {
+    origins.add(localFrontendUrl);
+  }
+
+  return Array.from(origins);
 })();
 
 app.use(
@@ -94,6 +108,7 @@ app.use("/api/categories", categoryRoutes); // Public routes
 app.use("/api/reviews", reviewRoutes); // Public & Student routes
 app.use("/api/admin", adminRoutes); // Admin routes
 app.use("/api/students", studentRoutes); // Student profile routes
+app.use("/api/newsletter", newsletterRoutes);
 
 app.get("/", (req, res) => {
   res.json({
@@ -108,6 +123,7 @@ app.get("/", (req, res) => {
       admin: "/api/admin",
       reviews: "/api/reviews",
       students: "/api/students",
+      newsletter: "/api/newsletter",
     },
   });
 });

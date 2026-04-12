@@ -1,0 +1,59 @@
+import { Router } from "express";
+
+const router = Router();
+
+router.post("/", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim();
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!isValidEmail) {
+      return res.status(400).json({ success: false, message: "Invalid email" });
+    }
+
+    const apiKey = process.env.BREVO_API_KEY || process.env.BREVO_APIKEY;
+    const listIdRaw = process.env.BREVO_LIST_ID || process.env.BREVO_NEWSLETTER_LIST_ID;
+    const listId = listIdRaw ? Number(listIdRaw) : undefined;
+
+    if (!apiKey) {
+      return res.status(500).json({ success: false, message: "Newsletter service is not configured" });
+    }
+
+    const payload: Record<string, unknown> = {
+      email,
+      updateEnabled: true,
+    };
+
+    if (listIdRaw && !Number.isNaN(listId)) {
+      payload.listIds = [listId];
+    }
+
+    const brevoRes = await fetch("https://api.brevo.com/v3/contacts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!brevoRes.ok) {
+      const details = await brevoRes.text();
+      return res.status(502).json({
+        success: false,
+        message: "Brevo rejected the subscription",
+        details,
+      });
+    }
+
+    return res.status(200).json({ success: true, message: "Subscribed successfully" });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Failed to subscribe" });
+  }
+});
+
+export default router;

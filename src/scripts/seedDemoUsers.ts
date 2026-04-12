@@ -6,6 +6,12 @@ import { UserRole } from "../middlewares/auth";
 const backendUrl =
     process.env.BETTER_AUTH_URL || `http://localhost:${process.env.PORT || 5000}`;
 
+if (!process.env.DATABASE_URL) {
+    console.error("Demo seeding requires DATABASE_URL in backend environment.");
+    console.error("Set DATABASE_URL, then rerun: npm run seed:demo");
+    process.exit(1);
+}
+
 const DEMO_USERS = {
     admin: {
         name: "Demo Admin",
