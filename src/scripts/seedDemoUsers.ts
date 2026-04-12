@@ -55,6 +55,30 @@ async function signUpIfNeeded(name: string, email: string, password: string) {
     return created;
 }
 
+async function resetDemoUserIfExists(email: string) {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (!existing) {
+        return;
+    }
+
+    const tutorProfile = await prisma.tutorProfile.findFirst({
+        where: { userId: existing.id },
+        select: { id: true },
+    });
+
+    if (tutorProfile) {
+        await prisma.review.deleteMany({ where: { tutorId: tutorProfile.id } });
+        await prisma.booking.deleteMany({ where: { tutorId: tutorProfile.id } });
+        await prisma.tutorProfile.delete({ where: { id: tutorProfile.id } });
+    }
+
+    await prisma.review.deleteMany({ where: { studentId: existing.id } });
+    await prisma.booking.deleteMany({ where: { studentId: existing.id } });
+    await prisma.account.deleteMany({ where: { userId: existing.id } });
+    await prisma.session.deleteMany({ where: { userId: existing.id } });
+    await prisma.user.delete({ where: { id: existing.id } });
+}
+
 async function ensureRole(email: string, role: UserRole) {
     await prisma.user.update({
         where: { email },
@@ -110,6 +134,11 @@ async function ensureTutorProfile(tutorEmail: string) {
 async function seedDemoUsers() {
     console.log("***** Demo user seeding started *****");
     console.log(`Using backend auth endpoint: ${backendUrl}`);
+
+    // Ensure fixed demo credentials by rebuilding these seeded identities.
+    await resetDemoUserIfExists(DEMO_USERS.admin.email);
+    await resetDemoUserIfExists(DEMO_USERS.student.email);
+    await resetDemoUserIfExists(DEMO_USERS.tutor.email);
 
     await signUpIfNeeded(
         DEMO_USERS.admin.name,
