@@ -19,13 +19,16 @@ const _debugTrustedOrigins =
 
 const resolvedFrontendUrl = trimTrailingSlash(
   process.env.FRONTEND_URL ||
-    (process.env.NODE_ENV !== "production" ? localFrontendUrl : defaultFrontendUrl),
+  (process.env.NODE_ENV !== "production" ? localFrontendUrl : defaultFrontendUrl),
 );
 const resolvedBackendUrl = trimTrailingSlash(
   process.env.BETTER_AUTH_URL || "http://localhost:5000",
 );
 const googleRedirectUri = trimTrailingSlash(
   process.env.GOOGLE_REDIRECT_URI || `${resolvedFrontendUrl}/api/auth/callback/google`,
+);
+const facebookRedirectUri = trimTrailingSlash(
+  process.env.FACEBOOK_REDIRECT_URI || `${resolvedFrontendUrl}/api/auth/callback/facebook`,
 );
 
 if (process.env.NODE_ENV !== "production") {
@@ -116,6 +119,15 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
       redirectURI: googleRedirectUri,
     },
+    ...(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET
+      ? {
+        facebook: {
+          clientId: process.env.FACEBOOK_CLIENT_ID,
+          clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+          redirectURI: facebookRedirectUri,
+        },
+      }
+      : {}),
   },
 });
 
