@@ -3,6 +3,28 @@ import auth from "../../middlewares/auth";
 
 const router = Router();
 
+const isOpenRouterBase = (url: string) => /openrouter\.ai/i.test(url);
+
+const normalizeModelForProvider = (model: string, baseUrl: string) => {
+    const trimmed = model.trim();
+    if (!trimmed) return trimmed;
+
+    if (isOpenRouterBase(baseUrl)) {
+        if (trimmed.includes("/")) return trimmed;
+
+        const openRouterMap: Record<string, string> = {
+            "gpt-4.1-mini": "openai/gpt-4.1-mini",
+            "gpt-4o-mini": "openai/gpt-4o-mini",
+            "gpt-4.1-nano": "openai/gpt-4.1-nano",
+            "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
+        };
+
+        return openRouterMap[trimmed] || `openai/${trimmed}`;
+    }
+
+    return trimmed;
+};
+
 const buildFallbackReply = (prompt: string, providerReason?: string) => {
     const reasonLine = providerReason
         ? `Provider note: ${providerReason.slice(0, 220)}`
@@ -42,9 +64,15 @@ router.post("/chat", auth(), async (req, res) => {
             });
         }
 
-        const preferredModel = String(process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
-        const fallbackModels = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1-nano", "gpt-3.5-turbo"];
-        const modelsToTry = Array.from(new Set([preferredModel, ...fallbackModels].filter(Boolean)));
+        const preferredModelRaw = String(process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
+        const fallbackModelsRaw = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1-nano"];
+        const modelsToTry = Array.from(
+            new Set(
+                [preferredModelRaw, ...fallbackModelsRaw]
+                    .filter(Boolean)
+                    .map((model) => normalizeModelForProvider(model, baseUrl)),
+            ),
+        );
         const userMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
         const lastUserMessage = userMessages
             .filter((msg: any) => msg?.role === "user" && typeof msg?.content === "string")
