@@ -3,6 +3,11 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+// Render can run overlapping deploy hooks; disabling advisory lock avoids
+// transient build failures on pg_advisory_lock timeout.
+process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK =
+  process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK ?? "1";
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
