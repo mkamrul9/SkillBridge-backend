@@ -71,50 +71,75 @@ router.post("/chat", auth(), async (req, res) => {
         const geminiKey = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || "")
             .trim()
             .replace(/^['\"]|['\"]$/g, "");
-        const geminiModel = String(process.env.GEMINI_MODEL || "gemini-1.5-flash").trim();
+        const preferredGeminiModel = String(process.env.GEMINI_MODEL || "gemini-2.0-flash").trim();
+        const geminiModelsToTry = Array.from(
+            new Set(
+                [
+                    preferredGeminiModel,
+                    "gemini-2.0-flash",
+                    "gemini-2.0-flash-lite",
+                    "gemini-1.5-flash-latest",
+                    "gemini-1.5-pro-latest",
+                ]
+                    .map((m) => m.replace(/^models\//, "").trim())
+                    .filter(Boolean),
+            ),
+        );
+        const preferredGeminiApiVersion = String(process.env.GEMINI_API_VERSION || "v1beta").trim();
+        const geminiApiVersionsToTry = Array.from(
+            new Set([preferredGeminiApiVersion, "v1beta", "v1"].filter(Boolean)),
+        );
         const promptText = String(lastUserMessage.content).slice(0, 4000);
 
         if (geminiKey) {
-            const geminiRes = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiKey)}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [
-                            {
-                                role: "user",
-                                parts: [
+            let geminiDetails = "";
+            let geminiReason = "";
+
+            for (const apiVersion of geminiApiVersionsToTry) {
+                for (const geminiModel of geminiModelsToTry) {
+                    const geminiRes = await fetch(
+                        `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                contents: [
                                     {
-                                        text:
-                                            "You are SkillBridge Assistant. Help students and tutors with bookings, profiles, tutoring workflows, and platform usage. Keep answers concise and practical.\n\nUser question: " + promptText,
+                                        role: "user",
+                                        parts: [
+                                            {
+                                                text:
+                                                    "You are SkillBridge Assistant. Help students and tutors with bookings, profiles, tutoring workflows, and platform usage. Keep answers concise and practical.\n\nUser question: " + promptText,
+                                            },
+                                        ],
                                     },
                                 ],
-                            },
-                        ],
-                        generationConfig: {
-                            temperature: 0.5,
-                            maxOutputTokens: 500,
+                                generationConfig: {
+                                    temperature: 0.5,
+                                    maxOutputTokens: 500,
+                                },
+                            }),
                         },
-                    }),
-                },
-            );
+                    );
 
-            if (geminiRes.ok) {
-                const geminiData: any = await geminiRes.json();
-                const geminiReply = (geminiData?.candidates?.[0]?.content?.parts || [])
-                    .map((part: any) => part?.text)
-                    .filter(Boolean)
-                    .join("\n")
-                    .trim();
+                    if (geminiRes.ok) {
+                        const geminiData: any = await geminiRes.json();
+                        const geminiReply = (geminiData?.candidates?.[0]?.content?.parts || [])
+                            .map((part: any) => part?.text)
+                            .filter(Boolean)
+                            .join("\n")
+                            .trim();
 
-                if (geminiReply) {
-                    return res.status(200).json({ success: true, data: { reply: geminiReply } });
+                        if (geminiReply) {
+                            return res.status(200).json({ success: true, data: { reply: geminiReply } });
+                        }
+                    } else {
+                        const details = await geminiRes.text();
+                        geminiDetails = `[version=${apiVersion}][model=${geminiModel}] ${details}`;
+                        geminiReason = parseProviderReason(details) || `Gemini rejected ${geminiModel}`;
+                    }
                 }
             }
-
-            const geminiDetails = await geminiRes.text();
-            const geminiReason = parseProviderReason(geminiDetails) || "Gemini request failed";
 
             // If Gemini is configured but fails, fall back to OpenAI if available.
             if (!process.env.OPENAI_API_KEY && !process.env.OPENAI_APIKEY && !process.env.OPENAI_KEY) {
