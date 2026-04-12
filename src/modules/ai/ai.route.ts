@@ -5,6 +5,19 @@ const router = Router();
 
 const isOpenRouterBase = (url: string) => /openrouter\.ai/i.test(url);
 
+const parseProviderReason = (details: string) => {
+    try {
+        const parsed = JSON.parse(details);
+        const message = parsed?.error?.message || parsed?.message;
+        const code = parsed?.error?.code || parsed?.code;
+        if (code && message) return `${code}: ${message}`;
+        if (message) return String(message);
+    } catch {
+        // ignore non-JSON errors
+    }
+    return details.slice(0, 240);
+};
+
 const normalizeModelForProvider = (model: string, baseUrl: string) => {
     const trimmed = model.trim();
     if (!trimmed) return trimmed;
@@ -64,8 +77,10 @@ router.post("/chat", auth(), async (req, res) => {
             });
         }
 
-        const preferredModelRaw = String(process.env.OPENAI_MODEL || "gpt-4.1-mini").trim();
-        const fallbackModelsRaw = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1-nano"];
+        const preferredModelRaw = String(process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
+        const fallbackModelsRaw = isOpenRouterBase(baseUrl)
+            ? ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1-nano"]
+            : ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"];
         const modelsToTry = Array.from(
             new Set(
                 [preferredModelRaw, ...fallbackModelsRaw]
@@ -134,7 +149,7 @@ router.post("/chat", auth(), async (req, res) => {
             if (!completion.ok) {
                 const details = await completion.text();
                 lastErrorDetails = `[model=${model}] ${details}`;
-                lastProviderReason = `chat/completions rejected model ${model}`;
+                lastProviderReason = parseProviderReason(details) || `chat/completions rejected model ${model}`;
 
                 // Some providers expose only the Responses API. Try that before failing this model.
                 const responsesRes = await fetch(`${baseUrl}/responses`, {
@@ -153,7 +168,7 @@ router.post("/chat", auth(), async (req, res) => {
                 if (!responsesRes.ok) {
                     const responsesDetails = await responsesRes.text();
                     lastErrorDetails = `${lastErrorDetails}\n[model=${model}][responses] ${responsesDetails}`;
-                    lastProviderReason = `responses rejected model ${model}`;
+                    lastProviderReason = parseProviderReason(responsesDetails) || `responses rejected model ${model}`;
                     continue;
                 }
 
@@ -188,7 +203,7 @@ router.post("/chat", auth(), async (req, res) => {
                 fallback: true,
             },
             warning:
-                "AI provider request failed. Verify API key/model access and provider base URL configuration.",
+                "AI provider request failed. Check API key validity, billing/quota, project access, and model availability.",
             details: lastErrorDetails.slice(0, 1000),
         });
     } catch (error) {
