@@ -56,6 +56,80 @@ const buildFallbackReply = (prompt: string, providerReason?: string) => {
 
 router.post("/chat", auth(), async (req, res) => {
     try {
+        const userMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+        const lastUserMessage = userMessages
+            .filter((msg: any) => msg?.role === "user" && typeof msg?.content === "string")
+            .slice(-1)[0];
+
+        if (!lastUserMessage?.content?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "A user message is required.",
+            });
+        }
+
+        const geminiKey = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || "")
+            .trim()
+            .replace(/^['\"]|['\"]$/g, "");
+        const geminiModel = String(process.env.GEMINI_MODEL || "gemini-1.5-flash").trim();
+        const promptText = String(lastUserMessage.content).slice(0, 4000);
+
+        if (geminiKey) {
+            const geminiRes = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [
+                                    {
+                                        text:
+                                            "You are SkillBridge Assistant. Help students and tutors with bookings, profiles, tutoring workflows, and platform usage. Keep answers concise and practical.\n\nUser question: " + promptText,
+                                    },
+                                ],
+                            },
+                        ],
+                        generationConfig: {
+                            temperature: 0.5,
+                            maxOutputTokens: 500,
+                        },
+                    }),
+                },
+            );
+
+            if (geminiRes.ok) {
+                const geminiData: any = await geminiRes.json();
+                const geminiReply = (geminiData?.candidates?.[0]?.content?.parts || [])
+                    .map((part: any) => part?.text)
+                    .filter(Boolean)
+                    .join("\n")
+                    .trim();
+
+                if (geminiReply) {
+                    return res.status(200).json({ success: true, data: { reply: geminiReply } });
+                }
+            }
+
+            const geminiDetails = await geminiRes.text();
+            const geminiReason = parseProviderReason(geminiDetails) || "Gemini request failed";
+
+            // If Gemini is configured but fails, fall back to OpenAI if available.
+            if (!process.env.OPENAI_API_KEY && !process.env.OPENAI_APIKEY && !process.env.OPENAI_KEY) {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        reply: buildFallbackReply(promptText, geminiReason),
+                        fallback: true,
+                    },
+                    warning: "Gemini provider request failed.",
+                    details: geminiDetails.slice(0, 1000),
+                });
+            }
+        }
+
         const apiKey = String(
             process.env.OPENAI_API_KEY ||
             process.env.OPENAI_APIKEY ||
@@ -88,18 +162,6 @@ router.post("/chat", auth(), async (req, res) => {
                     .map((model) => normalizeModelForProvider(model, baseUrl)),
             ),
         );
-        const userMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-        const lastUserMessage = userMessages
-            .filter((msg: any) => msg?.role === "user" && typeof msg?.content === "string")
-            .slice(-1)[0];
-
-        if (!lastUserMessage?.content?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "A user message is required.",
-            });
-        }
-
         const baseHeaders: Record<string, string> = {
             "Content-Type": "application/json",
             Authorization: `Bearer ${apiKey}`,
@@ -140,7 +202,7 @@ router.post("/chat", auth(), async (req, res) => {
                         },
                         {
                             role: "user",
-                            content: String(lastUserMessage.content).slice(0, 4000),
+                            content: promptText,
                         },
                     ],
                 }),
@@ -161,7 +223,7 @@ router.post("/chat", auth(), async (req, res) => {
                         max_output_tokens: 500,
                         instructions:
                             "You are SkillBridge Assistant. Help students and tutors with bookings, profiles, tutoring workflows, and platform usage. Keep answers concise and practical.",
-                        input: String(lastUserMessage.content).slice(0, 4000),
+                        input: promptText,
                     }),
                 });
 
