@@ -9,7 +9,8 @@
     "build": "tsc --project tsconfig.json --outDir dist",
     "start": "node dist/server.js",
     "seed:admin": "npx tsx src/scripts/seedAdmin.ts",
-    "seed:demo": "npx tsx src/scripts/seedDemoUsers.ts"
+    "seed:demo": "npx tsx src/scripts/seedDemoUsers.ts",
+    "seed:demo:remote": "npx tsx src/scripts/seedDemoUsersRemote.ts"
   },
   "keywords": [],
   "author": "",
