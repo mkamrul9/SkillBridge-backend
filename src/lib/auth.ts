@@ -37,6 +37,8 @@ if (process.env.NODE_ENV !== "production") {
   );
 }
 
+console.log(`[AuthDebug] Google redirect URI: ${googleRedirectUri}`);
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
