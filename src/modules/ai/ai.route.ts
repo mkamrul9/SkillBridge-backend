@@ -3,9 +3,14 @@ import auth from "../../middlewares/auth";
 
 const router = Router();
 
-const buildFallbackReply = (prompt: string) => {
+const buildFallbackReply = (prompt: string, providerReason?: string) => {
+    const reasonLine = providerReason
+        ? `Provider note: ${providerReason.slice(0, 220)}`
+        : "Provider note: Please verify AI provider credentials and model access.";
+
     return [
         "I could not reach the AI provider right now, but I can still help with SkillBridge basics.",
+        reasonLine,
         "Try these quick actions:",
         "1) Open Tutors to filter by category and rating.",
         "2) Use Dashboard to manage bookings and profile updates.",
@@ -74,6 +79,7 @@ router.post("/chat", auth(), async (req, res) => {
         }
 
         let lastErrorDetails = "";
+        let lastProviderReason = "";
 
         for (const model of modelsToTry) {
             const completion = await fetch(`${baseUrl}/chat/completions`, {
@@ -100,6 +106,40 @@ router.post("/chat", auth(), async (req, res) => {
             if (!completion.ok) {
                 const details = await completion.text();
                 lastErrorDetails = `[model=${model}] ${details}`;
+                lastProviderReason = `chat/completions rejected model ${model}`;
+
+                // Some providers expose only the Responses API. Try that before failing this model.
+                const responsesRes = await fetch(`${baseUrl}/responses`, {
+                    method: "POST",
+                    headers: baseHeaders,
+                    body: JSON.stringify({
+                        model,
+                        temperature: 0.5,
+                        max_output_tokens: 500,
+                        instructions:
+                            "You are SkillBridge Assistant. Help students and tutors with bookings, profiles, tutoring workflows, and platform usage. Keep answers concise and practical.",
+                        input: String(lastUserMessage.content).slice(0, 4000),
+                    }),
+                });
+
+                if (!responsesRes.ok) {
+                    const responsesDetails = await responsesRes.text();
+                    lastErrorDetails = `${lastErrorDetails}\n[model=${model}][responses] ${responsesDetails}`;
+                    lastProviderReason = `responses rejected model ${model}`;
+                    continue;
+                }
+
+                const responsesData: any = await responsesRes.json();
+                const responseReply =
+                    responsesData?.output_text?.trim() ||
+                    responsesData?.output?.[0]?.content?.[0]?.text?.trim();
+
+                if (responseReply) {
+                    return res.status(200).json({ success: true, data: { reply: responseReply } });
+                }
+
+                lastErrorDetails = `${lastErrorDetails}\n[model=${model}][responses] Empty response`;
+                lastProviderReason = `responses returned empty text for ${model}`;
                 continue;
             }
 
@@ -116,7 +156,7 @@ router.post("/chat", auth(), async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
-                reply: buildFallbackReply(String(lastUserMessage.content || "")),
+                reply: buildFallbackReply(String(lastUserMessage.content || ""), lastProviderReason),
                 fallback: true,
             },
             warning:
