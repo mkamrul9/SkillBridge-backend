@@ -54,6 +54,45 @@ const buildFallbackReply = (prompt: string, providerReason?: string) => {
     ].join("\n");
 };
 
+const getGeminiModelsForVersion = async (
+    apiVersion: string,
+    key: string,
+    preferredModel: string,
+    fallbackModels: string[],
+) => {
+    const normalizedPreferred = preferredModel.replace(/^models\//, "").trim();
+    const normalizedFallback = fallbackModels.map((m) => m.replace(/^models\//, "").trim());
+
+    const modelSet = new Set<string>([normalizedPreferred, ...normalizedFallback].filter(Boolean));
+
+    try {
+        const listRes = await fetch(
+            `https://generativelanguage.googleapis.com/${apiVersion}/models?key=${encodeURIComponent(key)}`,
+        );
+
+        if (listRes.ok) {
+            const listData: any = await listRes.json();
+            const models: any[] = Array.isArray(listData?.models) ? listData.models : [];
+
+            models.forEach((model) => {
+                const rawName = String(model?.name || "");
+                const name = rawName.replace(/^models\//, "").trim();
+                const supportsGenerate = Array.isArray(model?.supportedGenerationMethods)
+                    ? model.supportedGenerationMethods.includes("generateContent")
+                    : true;
+
+                if (name && supportsGenerate && name.toLowerCase().includes("gemini")) {
+                    modelSet.add(name);
+                }
+            });
+        }
+    } catch {
+        // If list call fails, we still continue with preferred + fallback models.
+    }
+
+    return Array.from(modelSet);
+};
+
 router.post("/chat", auth(), async (req, res) => {
     try {
         const userMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
@@ -72,19 +111,12 @@ router.post("/chat", auth(), async (req, res) => {
             .trim()
             .replace(/^['\"]|['\"]$/g, "");
         const preferredGeminiModel = String(process.env.GEMINI_MODEL || "gemini-2.0-flash").trim();
-        const geminiModelsToTry = Array.from(
-            new Set(
-                [
-                    preferredGeminiModel,
-                    "gemini-2.0-flash",
-                    "gemini-2.0-flash-lite",
-                    "gemini-1.5-flash-latest",
-                    "gemini-1.5-pro-latest",
-                ]
-                    .map((m) => m.replace(/^models\//, "").trim())
-                    .filter(Boolean),
-            ),
-        );
+        const geminiFallbackModels = [
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro-latest",
+        ];
         const preferredGeminiApiVersion = String(process.env.GEMINI_API_VERSION || "v1beta").trim();
         const geminiApiVersionsToTry = Array.from(
             new Set([preferredGeminiApiVersion, "v1beta", "v1"].filter(Boolean)),
@@ -96,6 +128,13 @@ router.post("/chat", auth(), async (req, res) => {
             let geminiReason = "";
 
             for (const apiVersion of geminiApiVersionsToTry) {
+                const geminiModelsToTry = await getGeminiModelsForVersion(
+                    apiVersion,
+                    geminiKey,
+                    preferredGeminiModel,
+                    geminiFallbackModels,
+                );
+
                 for (const geminiModel of geminiModelsToTry) {
                     const geminiRes = await fetch(
                         `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiKey)}`,
